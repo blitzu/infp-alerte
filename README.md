@@ -15,7 +15,7 @@ Pentru fiecare cutremur care trece de pragurile tale (magnitudine și distanță
 - actualizează senzori (ultima magnitudine, distanță, ora) și o stare „Telegram conectat”;
 - **deduplică** între surse (același cutremur de la INFP și de la EMSC se anunță o singură dată), anunță din nou doar o *revizuire în sus* a magnitudinii și **nu realertează după o repornire** a Home Assistant.
 
-Un **blueprint** transformă evenimentul în alerte pe trepte, cu acțiunile alese de tine (notificări, sirenă, lumini, voce pe boxe).
+**Alerta pe trepte se configurează vizual, din interfață, fără cod**: alegi din liste telefoanele, sirenele, luminile și boxele pentru fiecare treaptă (notificări, sirenă, lumini, mesaj vocal). Pentru cei avansați există și un blueprint.
 
 > **Important.** Alerta vine după ce cutremurul a început. La Vrancea, șocul puternic ajunge în sudul țării după ~40 de secunde, iar INFP anunță în ~30: câștigul e de câteva secunde, nu de minute. Sistemul te trezește și te informează, nu înlocuiește sistemele oficiale și nu garantează livrarea (internet, Telegram, Home Assistant trebuie să funcționeze).
 
@@ -49,57 +49,37 @@ Cu contul conectat în integrare, în aplicația Telegram trebuie să vezi canal
 
 *Setări → integrarea → Configurare:* magnitudine minimă (implicit 3,0), distanță maximă (450 km) și dacă folosește și EMSC ca rezervă. Locația de referință e cea a casei din Home Assistant.
 
-## Alerte pe trepte (blueprint)
+## Alerte pe trepte, din interfață (fără cod)
 
-Importă blueprint-ul cu un clic, apoi creează o automatizare din el (*Setări → Automatizări → Creează automatizare → Folosește un blueprint*):
+Nu trebuie să scrii scripturi, YAML sau automatizări. Mergi la **Setări → Dispozitive și servicii → Alerte seismice → Configurare**. Meniul are trei trepte; pentru fiecare alegi, **din liste**:
+
+| Ce alegi | Cum |
+|---|---|
+| **Când se declanșează** | magnitudinea minimă și distanța maximă față de casă (valori implicite: treapta 1 de la M4,0 sub 350 km, treapta 2 de la M4,5 sub 350 km, treapta 3 de la M5,5 sub 450 km) |
+| **Notificări pe telefoane** | alegi telefoanele (după nume, ex. „📱 iPhone Ana”); poți cere notificare **critică** (trece de „Nu deranja”, sună tare) și un sunet propriu pe iOS |
+| **Sirenă** | alegi sirenele și cât sună |
+| **Lumini** | alegi luminile (sau „toate”) și luminozitatea; la „Am văzut” revin exact cum erau |
+| **Boxe cu mesaj vocal** | alegi boxele, motorul de voce (TTS) și, dacă vrei, mesajul (are un text implicit în română sau engleză) și volumul; la „Am văzut” volumul revine |
+| **Repetare** | la treapta 3, sirena și vocea se repetă până apeși „Am văzut” (până la 5 ori) |
+
+Ce lași gol nu se execută. Se rulează doar treapta cea mai înaltă potrivită cutremurului; la o revizuire a magnitudinii (de exemplu 5,3 → 5,5) alerta rulează din nou **doar dacă treapta crește**, ca să nu suni de trei ori pentru același cutremur.
+
+**„Am văzut”:** buton în notificarea de pe telefon, buton în Home Assistant (*Am văzut (oprește alerta)*) sau acțiunea `infp_alerte.acknowledge` (de exemplu dintr-un buton al tău). Oprește sirenele și boxele și readuce luminile și volumele. Dacă nu confirmi, casa revine singură după 30 de minute.
+
+**Entități create:** *Cutremur* (eveniment), *Ultima magnitudine*, *Ultima distanță*, *Ora ultimului cutremur*, *Alertă în curs*, *Telegram conectat*, trei butoane *Exercițiu treapta N* și butonul *Am văzut*.
+
+### Avansat: automatizări proprii și blueprint
+
+Dacă vrei să faci altceva decât oferă formularul, entitatea *Cutremur* poate declanșa orice automatizare. Un blueprint gata făcut, cu acțiuni alese la fel de liber, e inclus:
 
 [![Deschide instanța mea Home Assistant și importă blueprint-ul.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fblitzu%2Finfp-alerte%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Finfp_alerte%2Falerta_pe_trepte.yaml)
 
-(Fișierul e `blueprints/automation/infp_alerte/alerta_pe_trepte.yaml`; HACS instalează doar integrarea, nu și blueprint-urile.) Pentru fiecare treaptă alegi magnitudinea minimă, distanța maximă și acțiunile. Implicit: treapta 1 de la M4,0 sub 350 km, treapta 2 de la M4,5 sub 350 km, treapta 3 de la M5,5 sub 450 km. Se execută doar treapta cea mai înaltă potrivită.
-
-În acțiuni sunt disponibile variabilele `tier`, `magnitude`, `distance_km`, `depth_km`, `region`, `quake_time`, `source`, `revised`.
-
-### Exemple de acțiuni
-
-Notificare critică (trece de „Nu deranja”), iOS și Android în același mesaj:
-
-```yaml
-- action: notify.mobile_app_telefonul_meu
-  data:
-    title: "Cutremur M{{ magnitude }} – {{ region }}"
-    message: "La {{ distance_km | round(0) }} km, adâncime {{ depth_km | round(0) }} km, ora {{ quake_time }}."
-    data:
-      ttl: 0
-      priority: high
-      channel: alarm_stream
-      push:
-        interruption-level: critical
-        sound: {name: default, critical: 1, volume: 1}
-```
-
-Lumini la 100% și sirenă:
-
-```yaml
-- action: light.turn_on
-  target: {entity_id: all}
-  data: {brightness_pct: 100}
-- action: siren.turn_on
-  target: {entity_id: siren.hol}
-```
-
-Voce pe boxe:
-
-```yaml
-- action: tts.speak
-  target: {entity_id: tts.google_translate_ro_ro}
-  data:
-    media_player_entity_id: media_player.boxa_living
-    message: "Atenție! Cutremur de magnitudine {{ magnitude }} în {{ region }}. Verificați dacă sunt replici."
-```
+(Fișierul e `blueprints/automation/infp_alerte/alerta_pe_trepte.yaml`; HACS instalează doar integrarea, nu și blueprint-urile.) **Nu folosi și formularul, și blueprint-ul pe aceleași trepte**, altfel alerta se dublează. În blueprint ai variabilele `tier`, `magnitude`, `distance_km`, `depth_km`, `region`, `quake_time`, `source`, `revised`, `previous_magnitude`.
 
 ## Cum testezi fără să trezești casa
 
-Serviciul **`infp_alerte.simulate_quake`** (Instrumente pentru dezvoltatori → Acțiuni) declanșează un cutremur de test cu magnitudinea și distanța alese de tine (ocolește pragurile și deduplicarea; sursa apare ca `test`). Blueprint-ul rulează acțiunile treptei potrivite, deci pentru un test liniștit alege o magnitudine mică, de exemplu `magnitude: 4.2`, `distance_km: 120` (treapta 1 cu valorile implicite). Pentru a verifica sirena și luminile folosește o treaptă mai mare, când e momentul potrivit.
+- **Butoanele „Exercițiu treapta 1/2/3”** (în pagina dispozitivului) rulează treapta cu efecte **reale** (sirenă, lumini, boxe, telefoane), dar cu texte marcate **EXERCIȚIU**, inclusiv în mesajul vorbit. Apeși „Am văzut” la sfârșit și totul revine cum era. Fă-le când nu doarme nimeni: sună tare, inclusiv pe telefoanele alese.
+- Serviciul **`infp_alerte.simulate_quake`** (Instrumente pentru dezvoltatori → Acțiuni) simulează un cutremur cu magnitudinea și distanța alese și rulează treapta potrivită tot ca exercițiu. Pentru ceva liniștit alege o magnitudine care nu atinge nicio treaptă, doar ca să vezi senzorii.
 
 ## Dezvoltare
 
@@ -109,7 +89,7 @@ uv pip install --python .venv/bin/python pytest-homeassistant-custom-component t
 .venv/bin/python -m pytest
 ```
 
-Testele acoperă parserul INFP, deduplicarea, EMSC, pornirea în Home Assistant, persistența după repornire, fluxul de autentificare și blueprint-ul.
+Testele acoperă parserul INFP, deduplicarea, EMSC, pornirea în Home Assistant, persistența după repornire, fluxul de autentificare, formularele de configurare, motorul de alertă (notificări, sirenă, lumini, boxe, „Am văzut”, revizuiri) și blueprint-ul.
 
 ## Alternative și mulțumiri
 
@@ -123,4 +103,4 @@ Există și [`ov1d1u/telegram_earthquake_alert`](https://github.com/ov1d1u/teleg
 
 # English summary
 
-Home Assistant integration for earthquake alerts using two sources: the Romanian National Institute for Earth Physics (INFP) bot on Telegram (your own account, ~30 s latency for large quakes) and EMSC (public, no account). It exposes an `event` entity plus sensors, deduplicates across sources and across restarts, and ships a blueprint for tiered alerts (notifications, siren, lights, TTS) with actions you choose. Use a **separate Telegram account**: the stored session can read the whole account. Alerts arrive after shaking has started; they do not replace official warning systems.
+Home Assistant integration for earthquake alerts using two sources: the Romanian National Institute for Earth Physics (INFP) bot on Telegram (your own account, ~30 s latency for large quakes) and EMSC (public, no account). It exposes an `event` entity plus sensors, deduplicates across sources and across restarts, and runs tiered alerts (phone notifications, sirens, lights, spoken messages on speakers) configured entirely from the UI, with no code; an optional blueprint is included for advanced users. Use a **separate Telegram account**: the stored session can read the whole account. Alerts arrive after shaking has started; they do not replace official warning systems.

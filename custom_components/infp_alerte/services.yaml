@@ -23,3 +23,5 @@ simulate_quake:
         text:
 
 check_subscriptions:
+
+acknowledge:

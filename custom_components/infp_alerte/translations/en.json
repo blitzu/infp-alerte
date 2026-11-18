@@ -60,14 +60,184 @@
   "options": {
     "step": {
       "init": {
-        "title": "Thresholds",
-        "description": "Earthquakes below the minimum magnitude or beyond the maximum distance (from the Home Assistant home location) are ignored. Tiered alerts are configured in the blueprint.",
+        "title": "Earthquake alerts",
+        "description": "Choose what to configure. Save everything with “Done”.",
+        "menu_options": {
+          "general": "General settings (thresholds, EMSC)",
+          "tier_1": "Tier 1 – information",
+          "tier_2": "Tier 2 – alarm",
+          "tier_3": "Tier 3 – critical",
+          "finish": "Done – save"
+        }
+      },
+      "general": {
+        "title": "General settings",
+        "description": "Earthquakes below the minimum magnitude or beyond the maximum distance (from the Home Assistant home location) are ignored entirely. The tiers pick from those that pass these thresholds.",
         "data": {
           "min_magnitude": "Minimum magnitude",
           "max_distance_km": "Maximum distance",
           "use_emsc": "Also use EMSC (backup)"
         }
+      },
+      "tier_1": {
+        "title": "Tier 1",
+        "description": "What happens when an earthquake passes this tier's thresholds. Pick only what you want: anything left empty is skipped. When a magnitude is revised, the alert runs again only if the tier goes up.",
+        "sections": {
+          "conditions": {
+            "name": "When it triggers",
+            "data": {
+              "min_magnitude": "Minimum magnitude",
+              "max_distance_km": "Maximum distance from home"
+            }
+          },
+          "notify": {
+            "name": "Phone notifications",
+            "description": "Pick the phones (Home Assistant app). “Critical” bypasses Do Not Disturb and plays loudly.",
+            "data": {
+              "services": "Phones",
+              "critical": "Critical notification (bypasses Do Not Disturb)",
+              "sound": "iOS sound (file name in the app, optional)",
+              "entities": "Other notifications (e.g. the Telegram bot)"
+            }
+          },
+          "siren": {
+            "name": "Siren",
+            "data": {
+              "entities": "Sirens",
+              "seconds": "How long it sounds"
+            }
+          },
+          "lights": {
+            "name": "Lights",
+            "description": "Lights turn on at the chosen brightness and go back as they were on “Seen it”.",
+            "data": {
+              "entities": "Lights",
+              "all": "All lights in the house",
+              "brightness": "Brightness"
+            }
+          },
+          "speakers": {
+            "name": "Speakers with a spoken message",
+            "description": "Pick the speakers and a text-to-speech engine. You can edit the message: the words in curly brackets (magnitude, region, distance, depth, time) are replaced automatically with the earthquake's data.",
+            "data": {
+              "entities": "Speakers",
+              "tts_entity": "Voice engine (TTS)",
+              "message": "Message (optional)",
+              "volume": "Volume"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repeat siren and voice until “Seen it” (tier 3 only, up to 5 times)"
+        }
+      },
+      "tier_2": {
+        "title": "Tier 2",
+        "description": "What happens when an earthquake passes this tier's thresholds. Pick only what you want: anything left empty is skipped. When a magnitude is revised, the alert runs again only if the tier goes up.",
+        "sections": {
+          "conditions": {
+            "name": "When it triggers",
+            "data": {
+              "min_magnitude": "Minimum magnitude",
+              "max_distance_km": "Maximum distance from home"
+            }
+          },
+          "notify": {
+            "name": "Phone notifications",
+            "description": "Pick the phones (Home Assistant app). “Critical” bypasses Do Not Disturb and plays loudly.",
+            "data": {
+              "services": "Phones",
+              "critical": "Critical notification (bypasses Do Not Disturb)",
+              "sound": "iOS sound (file name in the app, optional)",
+              "entities": "Other notifications (e.g. the Telegram bot)"
+            }
+          },
+          "siren": {
+            "name": "Siren",
+            "data": {
+              "entities": "Sirens",
+              "seconds": "How long it sounds"
+            }
+          },
+          "lights": {
+            "name": "Lights",
+            "description": "Lights turn on at the chosen brightness and go back as they were on “Seen it”.",
+            "data": {
+              "entities": "Lights",
+              "all": "All lights in the house",
+              "brightness": "Brightness"
+            }
+          },
+          "speakers": {
+            "name": "Speakers with a spoken message",
+            "description": "Pick the speakers and a text-to-speech engine. You can edit the message: the words in curly brackets (magnitude, region, distance, depth, time) are replaced automatically with the earthquake's data.",
+            "data": {
+              "entities": "Speakers",
+              "tts_entity": "Voice engine (TTS)",
+              "message": "Message (optional)",
+              "volume": "Volume"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repeat siren and voice until “Seen it” (tier 3 only, up to 5 times)"
+        }
+      },
+      "tier_3": {
+        "title": "Tier 3",
+        "description": "What happens when an earthquake passes this tier's thresholds. Pick only what you want: anything left empty is skipped. When a magnitude is revised, the alert runs again only if the tier goes up.",
+        "sections": {
+          "conditions": {
+            "name": "When it triggers",
+            "data": {
+              "min_magnitude": "Minimum magnitude",
+              "max_distance_km": "Maximum distance from home"
+            }
+          },
+          "notify": {
+            "name": "Phone notifications",
+            "description": "Pick the phones (Home Assistant app). “Critical” bypasses Do Not Disturb and plays loudly.",
+            "data": {
+              "services": "Phones",
+              "critical": "Critical notification (bypasses Do Not Disturb)",
+              "sound": "iOS sound (file name in the app, optional)",
+              "entities": "Other notifications (e.g. the Telegram bot)"
+            }
+          },
+          "siren": {
+            "name": "Siren",
+            "data": {
+              "entities": "Sirens",
+              "seconds": "How long it sounds"
+            }
+          },
+          "lights": {
+            "name": "Lights",
+            "description": "Lights turn on at the chosen brightness and go back as they were on “Seen it”.",
+            "data": {
+              "entities": "Lights",
+              "all": "All lights in the house",
+              "brightness": "Brightness"
+            }
+          },
+          "speakers": {
+            "name": "Speakers with a spoken message",
+            "description": "Pick the speakers and a text-to-speech engine. You can edit the message: the words in curly brackets (magnitude, region, distance, depth, time) are replaced automatically with the earthquake's data.",
+            "data": {
+              "entities": "Speakers",
+              "tts_entity": "Voice engine (TTS)",
+              "message": "Message (optional)",
+              "volume": "Volume"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repeat siren and voice until “Seen it” (tier 3 only, up to 5 times)"
+        }
       }
+    },
+    "error": {
+      "tts_required": "You picked speakers but no voice (TTS) engine."
     }
   },
   "entity": {
@@ -97,13 +267,30 @@
     "binary_sensor": {
       "telegram_connected": {
         "name": "Telegram connected"
+      },
+      "alert_active": {
+        "name": "Alert in progress"
+      }
+    },
+    "button": {
+      "drill_tier_1": {
+        "name": "Drill tier 1"
+      },
+      "drill_tier_2": {
+        "name": "Drill tier 2"
+      },
+      "drill_tier_3": {
+        "name": "Drill tier 3"
+      },
+      "acknowledge": {
+        "name": "Seen it (stop the alert)"
       }
     }
   },
   "services": {
     "simulate_quake": {
       "name": "Simulate an earthquake",
-      "description": "Fires a test earthquake (bypasses thresholds and deduplication). Note: the blueprint runs the matching tier's actions, so pick a small magnitude (tier 1) to avoid triggering sirens.",
+      "description": "Fires a simulated earthquake as a DRILL: the matching tier runs with real effects (siren, lights, speakers, phones) but with texts marked “DRILL”. Bypasses thresholds and deduplication.",
       "fields": {
         "magnitude": {
           "name": "Magnitude",
@@ -126,6 +313,15 @@
     "check_subscriptions": {
       "name": "Check subscriptions",
       "description": "Lists the earthquake-alert broadcast channels (by title) the connected Telegram account is subscribed to. Only titles of broadcast channels that look like INFP are read; other chats are not touched."
+    },
+    "acknowledge": {
+      "name": "Acknowledge",
+      "description": "Stops the alert in progress (sirens, speakers) and puts lights and volumes back as they were."
+    }
+  },
+  "exceptions": {
+    "tier_without_actions": {
+      "message": "Tier {tier} has no actions configured. Choose what happens in Settings → the integration → Configure."
     }
   }
 }

@@ -7,7 +7,9 @@
   "integration_type": "service",
   "iot_class": "cloud_push",
   "issue_tracker": "https://github.com/blitzu/infp-alerte/issues",
-  "requirements": ["telethon>=1.36.0"],
+  "requirements": [
+    "telethon>=1.36.0"
+  ],
   "single_config_entry": true,
-  "version": "0.1.0"
+  "version": "0.2.0"
 }

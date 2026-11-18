@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 import logging
 from typing import Any
 
@@ -10,8 +11,10 @@ from telethon.sessions import StringSession
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlowWithReload
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
+from homeassistant.util import slugify
 
 from .defaults import load_default_api
 from .const import (
@@ -23,11 +26,19 @@ from .const import (
     CONF_PASSWORD,
     CONF_PHONE,
     CONF_SESSION,
+    CONF_TIERS,
     CONF_USE_EMSC,
     DEFAULT_MAX_DISTANCE,
     DEFAULT_MIN_MAGNITUDE,
     DEFAULT_USE_EMSC,
+    DEFAULT_BRIGHTNESS,
+    DEFAULT_SIREN_SECONDS,
+    DEFAULT_SPEAKER_VOLUME,
+    DEFAULT_TTS_MESSAGE_EN,
+    DEFAULT_TTS_MESSAGE_RO,
     DOMAIN,
+    TIER_DEFAULTS,
+    TIERS,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -230,13 +241,47 @@ class InfpAlerteConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_telegram()
 
 
+def notify_options(hass: HomeAssistant, selected: list[str]) -> list[selector.SelectOptionDict]:
+    """Telefoanele (aplicatia Home Assistant) si alte servicii de notificare, cu nume prietenoase unde se poate."""
+    services = set(hass.services.async_services_for_domain("notify")) - {"send_message", "persistent_notification", "notify"}
+    services |= set(selected)  # pastreaza alegerile existente chiar daca serviciul lipseste acum
+    names: dict[str, str] = {}
+    for entry in hass.config_entries.async_entries("mobile_app"):
+        device = entry.data.get("device_name")
+        if device:
+            names[f"mobile_app_{slugify(device)}"] = f"📱 {device}"
+    return [
+        selector.SelectOptionDict(value=svc, label=names.get(svc, svc))
+        for svc in sorted(services, key=lambda x: names.get(x, x).lower())
+    ]
+
+
 class InfpOptionsFlow(OptionsFlowWithReload):
-    """Praguri de baza; alertele pe trepte se configureaza din blueprint."""
+    """Setari generale si, pentru fiecare treapta de alerta, ce se intampla (alese din liste, fara cod)."""
+
+    def __init__(self) -> None:
+        self._opts: dict[str, Any] | None = None
+
+    def _options(self) -> dict[str, Any]:
+        if self._opts is None:
+            self._opts = deepcopy(dict(self.config_entry.options))
+        return self._opts
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        self._options()
+        return self.async_show_menu(
+            step_id="init", menu_options=["general", "tier_1", "tier_2", "tier_3", "finish"]
+        )
+
+    async def async_step_finish(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_create_entry(data=self._options())
+
+    # ---- setari generale ---------------------------------------------------
+    async def async_step_general(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        opts = self._options()
         if user_input is not None:
-            return self.async_create_entry(data=user_input)
-        opts = self.config_entry.options
+            opts.update(user_input)
+            return await self.async_step_init()
         schema = vol.Schema(
             {
                 vol.Required(
@@ -256,4 +301,138 @@ class InfpOptionsFlow(OptionsFlowWithReload):
                 ): selector.BooleanSelector(),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="general", data_schema=schema)
+
+    # ---- treptele ----------------------------------------------------------------
+    async def async_step_tier_1(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._tier_step(1, user_input)
+
+    async def async_step_tier_2(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._tier_step(2, user_input)
+
+    async def async_step_tier_3(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return await self._tier_step(3, user_input)
+
+    async def _tier_step(self, tier: int, user_input: dict[str, Any] | None) -> ConfigFlowResult:
+        errors: dict[str, str] = {}
+        opts = self._options()
+        current = (opts.get(CONF_TIERS) or {}).get(str(tier)) or {}
+        if user_input is not None:
+            speakers = user_input.get("speakers") or {}
+            if speakers.get("entities") and not speakers.get("tts_entity"):
+                errors["base"] = "tts_required"
+            else:
+                opts.setdefault(CONF_TIERS, {})[str(tier)] = user_input
+                return await self.async_step_init()
+            current = user_input
+        return self.async_show_form(
+            step_id=f"tier_{tier}",
+            data_schema=self._tier_schema(tier, current),
+            errors=errors,
+            description_placeholders={"tier": str(tier)},
+        )
+
+    def _tier_schema(self, tier: int, cur: Mapping[str, Any]) -> vol.Schema:
+        dmag, ddist = TIER_DEFAULTS[tier]
+        cond = cur.get("conditions") or {}
+        notif = cur.get("notify") or {}
+        siren = cur.get("siren") or {}
+        lights = cur.get("lights") or {}
+        spk = cur.get("speakers") or {}
+
+        default_message = DEFAULT_TTS_MESSAGE_RO if str(self.hass.config.language).lower().startswith("ro") else DEFAULT_TTS_MESSAGE_EN
+
+        def suggested(value):
+            return {"suggested_value": value}
+
+        return vol.Schema(
+            {
+                vol.Required("conditions"): section(
+                    vol.Schema(
+                        {
+                            vol.Required("min_magnitude", default=cond.get("min_magnitude", dmag)): selector.NumberSelector(
+                                selector.NumberSelectorConfig(min=1.0, max=9.0, step=0.1, mode=selector.NumberSelectorMode.BOX)
+                            ),
+                            vol.Required("max_distance_km", default=cond.get("max_distance_km", ddist)): selector.NumberSelector(
+                                selector.NumberSelectorConfig(
+                                    min=10, max=3000, step=10, unit_of_measurement="km", mode=selector.NumberSelectorMode.BOX
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": False},
+                ),
+                vol.Required("notify"): section(
+                    vol.Schema(
+                        {
+                            vol.Optional("services", description=suggested(notif.get("services", []))): selector.SelectSelector(
+                                selector.SelectSelectorConfig(
+                                    options=notify_options(self.hass, notif.get("services", [])),
+                                    multiple=True,
+                                    mode=selector.SelectSelectorMode.DROPDOWN,
+                                )
+                            ),
+                            vol.Optional("entities", description=suggested(notif.get("entities", []))): selector.EntitySelector(
+                                selector.EntitySelectorConfig(domain="notify", multiple=True)
+                            ),
+                            vol.Optional("critical", default=notif.get("critical", False)): selector.BooleanSelector(),
+                            vol.Optional("sound", description=suggested(notif.get("sound", ""))): selector.TextSelector(),
+                        }
+                    ),
+                    {"collapsed": False},
+                ),
+                vol.Required("siren"): section(
+                    vol.Schema(
+                        {
+                            vol.Optional("entities", description=suggested(siren.get("entities", []))): selector.EntitySelector(
+                                selector.EntitySelectorConfig(domain="siren", multiple=True)
+                            ),
+                            vol.Optional("seconds", default=siren.get("seconds", DEFAULT_SIREN_SECONDS)): selector.NumberSelector(
+                                selector.NumberSelectorConfig(
+                                    min=1, max=600, step=1, unit_of_measurement="s", mode=selector.NumberSelectorMode.BOX
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": not siren},
+                ),
+                vol.Required("lights"): section(
+                    vol.Schema(
+                        {
+                            vol.Optional("entities", description=suggested(lights.get("entities", []))): selector.EntitySelector(
+                                selector.EntitySelectorConfig(domain="light", multiple=True)
+                            ),
+                            vol.Optional("all", default=lights.get("all", False)): selector.BooleanSelector(),
+                            vol.Optional("brightness", default=lights.get("brightness", DEFAULT_BRIGHTNESS)): selector.NumberSelector(
+                                selector.NumberSelectorConfig(
+                                    min=1, max=100, step=1, unit_of_measurement="%", mode=selector.NumberSelectorMode.SLIDER
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": not lights},
+                ),
+                vol.Required("speakers"): section(
+                    vol.Schema(
+                        {
+                            vol.Optional("entities", description=suggested(spk.get("entities", []))): selector.EntitySelector(
+                                selector.EntitySelectorConfig(domain="media_player", multiple=True)
+                            ),
+                            vol.Optional("tts_entity", description=suggested(spk.get("tts_entity"))): selector.EntitySelector(
+                                selector.EntitySelectorConfig(domain="tts")
+                            ),
+                            vol.Optional("message", description=suggested(spk.get("message") or default_message)): selector.TextSelector(
+                                selector.TextSelectorConfig(multiline=True)
+                            ),
+                            vol.Optional("volume", default=spk.get("volume", DEFAULT_SPEAKER_VOLUME)): selector.NumberSelector(
+                                selector.NumberSelectorConfig(
+                                    min=0.1, max=1.0, step=0.05, mode=selector.NumberSelectorMode.SLIDER
+                                )
+                            ),
+                        }
+                    ),
+                    {"collapsed": not spk},
+                ),
+                vol.Optional("repeat", default=cur.get("repeat", False)): selector.BooleanSelector(),
+            }
+        )

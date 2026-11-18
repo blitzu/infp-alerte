@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 from telethon import errors
 
+from pytest_homeassistant_custom_component.common import MockConfigEntry
+
 from custom_components.infp_alerte.const import DOMAIN
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
@@ -133,18 +135,79 @@ async def test_a_doua_configurare_e_refuzata(hass: HomeAssistant):
     assert res2["type"] is FlowResultType.ABORT and res2["reason"] == "single_instance_allowed"
 
 
-async def test_optiuni(hass: HomeAssistant):
+async def _options_entry(hass: HomeAssistant):
     res = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     res = await hass.config_entries.flow.async_configure(res["flow_id"], {"next_step_id": "emsc_only"})
-    entry = res["result"]
     await hass.async_block_till_done()
+    return res["result"]
+
+
+async def test_optiuni_setari_generale_prin_meniu(hass: HomeAssistant):
+    entry = await _options_entry(hass)
     opt = await hass.config_entries.options.async_init(entry.entry_id)
-    assert opt["type"] is FlowResultType.FORM
+    assert opt["type"] is FlowResultType.MENU
+    assert set(opt["menu_options"]) == {"general", "tier_1", "tier_2", "tier_3", "finish"}
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], {"next_step_id": "general"})
+    assert opt["type"] is FlowResultType.FORM and opt["step_id"] == "general"
     opt = await hass.config_entries.options.async_configure(
         opt["flow_id"], {"min_magnitude": 4.0, "max_distance_km": 300, "use_emsc": False}
     )
+    assert opt["type"] is FlowResultType.MENU  # inapoi la meniu
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], {"next_step_id": "finish"})
     assert opt["type"] is FlowResultType.CREATE_ENTRY
-    assert entry.options == {"min_magnitude": 4.0, "max_distance_km": 300, "use_emsc": False}
+    assert entry.options["min_magnitude"] == 4.0 and entry.options["max_distance_km"] == 300 and entry.options["use_emsc"] is False
+
+
+TIER2_FORM = {
+    "conditions": {"min_magnitude": 4.5, "max_distance_km": 350},
+    "notify": {"services": ["mobile_app_telefon_a"], "critical": True, "sound": "alarma.wav"},
+    "siren": {"entities": ["siren.hol"], "seconds": 30},
+    "lights": {"entities": ["light.hol"], "all": False, "brightness": 90},
+    "speakers": {"entities": ["media_player.boxa"], "tts_entity": "tts.ro", "message": "Cutremur {magnitude}", "volume": 0.7},
+    "repeat": False,
+}
+
+
+async def test_optiuni_treapta_salveaza_alegerile_din_formular(hass: HomeAssistant):
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "notify", "mobile_app_telefon_a")
+    entry = await _options_entry(hass)
+    opt = await hass.config_entries.options.async_init(entry.entry_id)
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], {"next_step_id": "tier_2"})
+    assert opt["type"] is FlowResultType.FORM and opt["step_id"] == "tier_2"
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], TIER2_FORM)
+    assert opt["type"] is FlowResultType.MENU
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], {"next_step_id": "finish"})
+    assert opt["type"] is FlowResultType.CREATE_ENTRY
+    assert entry.options["tiers"]["2"]["notify"]["services"] == ["mobile_app_telefon_a"]
+    assert entry.options["tiers"]["2"]["siren"] == {"entities": ["siren.hol"], "seconds": 30}
+
+
+async def test_optiuni_treapta_cere_motor_de_voce_daca_sunt_boxe(hass: HomeAssistant):
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    async_mock_service(hass, "notify", "mobile_app_telefon_a")
+    entry = await _options_entry(hass)
+    opt = await hass.config_entries.options.async_init(entry.entry_id)
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], {"next_step_id": "tier_2"})
+    bad = {**TIER2_FORM, "speakers": {"entities": ["media_player.boxa"], "volume": 0.7}}
+    opt = await hass.config_entries.options.async_configure(opt["flow_id"], bad)
+    assert opt["type"] is FlowResultType.FORM and opt["errors"] == {"base": "tts_required"}
+
+
+async def test_lista_de_notificari_foloseste_numele_telefoanelor(hass: HomeAssistant):
+    from pytest_homeassistant_custom_component.common import async_mock_service
+
+    from custom_components.infp_alerte.config_flow import notify_options
+
+    async_mock_service(hass, "notify", "mobile_app_iphone_ana")
+    async_mock_service(hass, "notify", "alt_serviciu")
+    MockConfigEntry(domain="mobile_app", data={"device_name": "iPhone Ana"}).add_to_hass(hass)
+    opts = {o["value"]: o["label"] for o in notify_options(hass, ["mobile_app_dispozitiv_vechi"])}
+    assert opts["mobile_app_iphone_ana"] == "📱 iPhone Ana"
+    assert "alt_serviciu" in opts and "mobile_app_dispozitiv_vechi" in opts  # alegerea veche se pastreaza
+    assert "send_message" not in opts
 
 
 async def test_cu_credentiale_implicite_cere_doar_telefonul(hass: HomeAssistant):

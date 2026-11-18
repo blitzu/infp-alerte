@@ -29,6 +29,7 @@ from .const import (
     SIGNAL_QUAKE,
     SIGNAL_STATUS,
 )
+from .alerts import AlertEngine
 from .emsc import fetch_emsc
 from .parser import Quake
 from .quake_log import QuakeLog, from_dict, haversine_km, to_dict
@@ -53,6 +54,7 @@ class Hub:
         self.last_distance_km: float | None = None
         self.last_revised = False
         self.telegram: TelegramListener | None = None
+        self.engine = AlertEngine(hass, self)
         self._store: Store[dict[str, Any]] = Store(hass, STORAGE_VERSION, f"{DOMAIN}.{entry.entry_id}")
         self._seeded = False
         self._unsubs: list = []
@@ -91,6 +93,7 @@ class Hub:
             except (KeyError, ValueError, TypeError):
                 self.last = None
 
+        await self.engine.async_start()
         if self.has_telegram:
             self.telegram = TelegramListener(
                 int(self.entry.data[CONF_API_ID]),
@@ -111,6 +114,7 @@ class Hub:
         for unsub in self._unsubs:
             unsub()
         self._unsubs.clear()
+        await self.engine.async_stop()
         if self.telegram is not None:
             await self.telegram.async_stop()
             self.telegram = None

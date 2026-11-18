@@ -18,12 +18,13 @@ from homeassistant.helpers.typing import ConfigType
 from .const import DOMAIN
 from .hub import Hub, TelegramAuthError
 
-PLATFORMS = [Platform.EVENT, Platform.SENSOR, Platform.BINARY_SENSOR]
+PLATFORMS = [Platform.EVENT, Platform.SENSOR, Platform.BINARY_SENSOR, Platform.BUTTON]
 
 type InfpConfigEntry = ConfigEntry[Hub]
 
 SERVICE_SIMULATE = "simulate_quake"
 SERVICE_CHECK = "check_subscriptions"
+SERVICE_ACK = "acknowledge"
 SIMULATE_SCHEMA = vol.Schema(
     {
         vol.Required("magnitude"): vol.All(vol.Coerce(float), vol.Range(min=0, max=10)),
@@ -58,7 +59,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         channels = await hubs[0].telegram.async_list_candidate_channels()
         return {"count": len(channels), "channels": channels}
 
+    async def _ack(call: ServiceCall) -> None:
+        """"Am vazut" pentru automatizari/tablouri de bord: opreste alerta si readuce casa cum era."""
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            if entry.state is ConfigEntryState.LOADED:
+                await entry.runtime_data.engine.async_acknowledge()
+
     hass.services.async_register(DOMAIN, SERVICE_SIMULATE, _simulate, schema=SIMULATE_SCHEMA)
+    hass.services.async_register(DOMAIN, SERVICE_ACK, _ack, schema=vol.Schema({}))
     hass.services.async_register(
         DOMAIN, SERVICE_CHECK, _check, schema=vol.Schema({}), supports_response=SupportsResponse.ONLY
     )

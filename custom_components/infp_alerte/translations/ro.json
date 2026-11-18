@@ -60,14 +60,184 @@
   "options": {
     "step": {
       "init": {
-        "title": "Praguri",
-        "description": "Cutremurele sub magnitudinea minimă sau peste distanța maximă (față de locația casei din HA) sunt ignorate. Alertele pe trepte se configurează din blueprint.",
+        "title": "Alerte seismice",
+        "description": "Alege ce vrei să configurezi. Salvezi totul cu „Gata”.",
+        "menu_options": {
+          "general": "Setări generale (praguri, EMSC)",
+          "tier_1": "Treapta 1 – informare",
+          "tier_2": "Treapta 2 – alarmă",
+          "tier_3": "Treapta 3 – critic",
+          "finish": "Gata – salvează"
+        }
+      },
+      "general": {
+        "title": "Setări generale",
+        "description": "Cutremurele sub magnitudinea minimă sau peste distanța maximă (față de casa din Home Assistant) sunt ignorate complet. Treptele de mai jos se aleg dintre cele care trec de aceste praguri.",
         "data": {
           "min_magnitude": "Magnitudine minimă",
           "max_distance_km": "Distanță maximă",
           "use_emsc": "Folosește și EMSC (rezervă)"
         }
+      },
+      "tier_1": {
+        "title": "Treapta 1",
+        "description": "Ce se întâmplă când un cutremur trece de pragurile acestei trepte. Alege doar ce vrei: tot ce lași gol nu se execută. La o revizuire a magnitudinii, alerta rulează din nou doar dacă treapta crește.",
+        "sections": {
+          "conditions": {
+            "name": "Când se declanșează",
+            "data": {
+              "min_magnitude": "Magnitudine minimă",
+              "max_distance_km": "Distanță maximă față de casă"
+            }
+          },
+          "notify": {
+            "name": "Notificări pe telefoane",
+            "description": "Alege telefoanele (aplicația Home Assistant). „Critică” trece de Nu deranja și sună tare.",
+            "data": {
+              "services": "Telefoane",
+              "critical": "Notificare critică (trece de Nu deranja)",
+              "sound": "Sunet iOS (numele fișierului din aplicație, opțional)",
+              "entities": "Alte notificări (ex. botul Telegram)"
+            }
+          },
+          "siren": {
+            "name": "Sirenă",
+            "data": {
+              "entities": "Sirene",
+              "seconds": "Cât sună"
+            }
+          },
+          "lights": {
+            "name": "Lumini",
+            "description": "Luminile se aprind la intensitatea aleasă, iar la „Am văzut” revin cum erau.",
+            "data": {
+              "entities": "Lumini",
+              "all": "Toate luminile din casă",
+              "brightness": "Luminozitate"
+            }
+          },
+          "speakers": {
+            "name": "Boxe cu mesaj vocal",
+            "description": "Alege boxele și un motor de voce (text-to-speech). Mesajul îl poți edita: cuvintele dintre acolade (magnitude, region, distance, depth, time) se înlocuiesc automat cu datele cutremurului.",
+            "data": {
+              "entities": "Boxe",
+              "tts_entity": "Motor de voce (TTS)",
+              "message": "Mesaj (opțional)",
+              "volume": "Volum"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repetă sirena și vocea până apeși „Am văzut” (doar treapta 3, până la 5 ori)"
+        }
+      },
+      "tier_2": {
+        "title": "Treapta 2",
+        "description": "Ce se întâmplă când un cutremur trece de pragurile acestei trepte. Alege doar ce vrei: tot ce lași gol nu se execută. La o revizuire a magnitudinii, alerta rulează din nou doar dacă treapta crește.",
+        "sections": {
+          "conditions": {
+            "name": "Când se declanșează",
+            "data": {
+              "min_magnitude": "Magnitudine minimă",
+              "max_distance_km": "Distanță maximă față de casă"
+            }
+          },
+          "notify": {
+            "name": "Notificări pe telefoane",
+            "description": "Alege telefoanele (aplicația Home Assistant). „Critică” trece de Nu deranja și sună tare.",
+            "data": {
+              "services": "Telefoane",
+              "critical": "Notificare critică (trece de Nu deranja)",
+              "sound": "Sunet iOS (numele fișierului din aplicație, opțional)",
+              "entities": "Alte notificări (ex. botul Telegram)"
+            }
+          },
+          "siren": {
+            "name": "Sirenă",
+            "data": {
+              "entities": "Sirene",
+              "seconds": "Cât sună"
+            }
+          },
+          "lights": {
+            "name": "Lumini",
+            "description": "Luminile se aprind la intensitatea aleasă, iar la „Am văzut” revin cum erau.",
+            "data": {
+              "entities": "Lumini",
+              "all": "Toate luminile din casă",
+              "brightness": "Luminozitate"
+            }
+          },
+          "speakers": {
+            "name": "Boxe cu mesaj vocal",
+            "description": "Alege boxele și un motor de voce (text-to-speech). Mesajul îl poți edita: cuvintele dintre acolade (magnitude, region, distance, depth, time) se înlocuiesc automat cu datele cutremurului.",
+            "data": {
+              "entities": "Boxe",
+              "tts_entity": "Motor de voce (TTS)",
+              "message": "Mesaj (opțional)",
+              "volume": "Volum"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repetă sirena și vocea până apeși „Am văzut” (doar treapta 3, până la 5 ori)"
+        }
+      },
+      "tier_3": {
+        "title": "Treapta 3",
+        "description": "Ce se întâmplă când un cutremur trece de pragurile acestei trepte. Alege doar ce vrei: tot ce lași gol nu se execută. La o revizuire a magnitudinii, alerta rulează din nou doar dacă treapta crește.",
+        "sections": {
+          "conditions": {
+            "name": "Când se declanșează",
+            "data": {
+              "min_magnitude": "Magnitudine minimă",
+              "max_distance_km": "Distanță maximă față de casă"
+            }
+          },
+          "notify": {
+            "name": "Notificări pe telefoane",
+            "description": "Alege telefoanele (aplicația Home Assistant). „Critică” trece de Nu deranja și sună tare.",
+            "data": {
+              "services": "Telefoane",
+              "critical": "Notificare critică (trece de Nu deranja)",
+              "sound": "Sunet iOS (numele fișierului din aplicație, opțional)",
+              "entities": "Alte notificări (ex. botul Telegram)"
+            }
+          },
+          "siren": {
+            "name": "Sirenă",
+            "data": {
+              "entities": "Sirene",
+              "seconds": "Cât sună"
+            }
+          },
+          "lights": {
+            "name": "Lumini",
+            "description": "Luminile se aprind la intensitatea aleasă, iar la „Am văzut” revin cum erau.",
+            "data": {
+              "entities": "Lumini",
+              "all": "Toate luminile din casă",
+              "brightness": "Luminozitate"
+            }
+          },
+          "speakers": {
+            "name": "Boxe cu mesaj vocal",
+            "description": "Alege boxele și un motor de voce (text-to-speech). Mesajul îl poți edita: cuvintele dintre acolade (magnitude, region, distance, depth, time) se înlocuiesc automat cu datele cutremurului.",
+            "data": {
+              "entities": "Boxe",
+              "tts_entity": "Motor de voce (TTS)",
+              "message": "Mesaj (opțional)",
+              "volume": "Volum"
+            }
+          }
+        },
+        "data": {
+          "repeat": "Repetă sirena și vocea până apeși „Am văzut” (doar treapta 3, până la 5 ori)"
+        }
       }
+    },
+    "error": {
+      "tts_required": "Ai ales boxe, dar nu și un motor de voce (TTS)."
     }
   },
   "entity": {
@@ -97,13 +267,30 @@
     "binary_sensor": {
       "telegram_connected": {
         "name": "Telegram conectat"
+      },
+      "alert_active": {
+        "name": "Alertă în curs"
+      }
+    },
+    "button": {
+      "drill_tier_1": {
+        "name": "Exercițiu treapta 1"
+      },
+      "drill_tier_2": {
+        "name": "Exercițiu treapta 2"
+      },
+      "drill_tier_3": {
+        "name": "Exercițiu treapta 3"
+      },
+      "acknowledge": {
+        "name": "Am văzut (oprește alerta)"
       }
     }
   },
   "services": {
     "simulate_quake": {
       "name": "Simulează un cutremur",
-      "description": "Declanșează un cutremur de test (ocolește pragurile și deduplicarea). Ține cont: blueprint-ul rulează acțiunile treptei corespunzătoare, deci alege o magnitudine mică (treapta 1) ca să nu pornești sirena.",
+      "description": "Declanșează un cutremur simulat, ca EXERCIȚIU: treapta potrivită rulează cu efecte reale (sirenă, lumini, boxe, telefoane), dar cu texte marcate „EXERCIȚIU”. Ocolește pragurile și deduplicarea.",
       "fields": {
         "magnitude": {
           "name": "Magnitudine",
@@ -126,6 +313,15 @@
     "check_subscriptions": {
       "name": "Verifică abonările",
       "description": "Listează canalele de alertă seismică (după titlu) la care e abonat contul Telegram conectat. Se citesc doar titlurile canalelor de difuzare care par INFP; restul conversațiilor nu sunt citite."
+    },
+    "acknowledge": {
+      "name": "Am văzut",
+      "description": "Oprește alerta în curs (sirene, boxe) și readuce luminile și volumele cum erau."
+    }
+  },
+  "exceptions": {
+    "tier_without_actions": {
+      "message": "Treapta {tier} nu are nicio acțiune configurată. Alege ce să se întâmple în Setări → integrarea → Configurare."
     }
   }
 }
