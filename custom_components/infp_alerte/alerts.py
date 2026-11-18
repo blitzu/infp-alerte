@@ -14,12 +14,14 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.dispatcher import async_dispatcher_connect, async_dispatcher_send
 from homeassistant.util import dt as dt_util
 
 from . import const
 from .const import (
     ACK_ACTION,
+    ACK_TELEGRAM,
     CONF_TIERS,
     DEFAULT_BRIGHTNESS,
     DEFAULT_SIREN_SECONDS,
@@ -45,6 +47,7 @@ _TEXTS = {
         "body": "M{mag}, {region}, la {dist} km de casă, adâncime {depth} km, ora {time}.",
         "drill_body": " Exercițiu: nu e un cutremur real.",
         "ack": "Am văzut",
+        "ack_done": "Am oprit alerta.",
         "drill_voice": "Exercițiu, nu este un cutremur real. ",
     },
     "en": {
@@ -53,6 +56,7 @@ _TEXTS = {
         "body": "M{mag}, {region}, {dist} km from home, depth {depth} km, time {time}.",
         "drill_body": " Drill: this is not a real earthquake.",
         "ack": "Seen it",
+        "ack_done": "Alert stopped.",
         "drill_voice": "Drill, this is not a real earthquake. ",
     },
 }
@@ -138,6 +142,7 @@ class AlertEngine:
         self._snapshot_taken = False
         self._saved_volumes: dict[str, float] = {}
         self._stop_entities: tuple[list[str], list[str]] = ([], [])
+        self._telegram_entry_id: str | None = None
         self._unsubs: list = []
 
     # ---- ciclu de viata -----------------------------------------------
@@ -149,6 +154,7 @@ class AlertEngine:
         self.load_options()
         self._unsubs.append(async_dispatcher_connect(self.hass, SIGNAL_QUAKE, self._on_quake))
         self._unsubs.append(self.hass.bus.async_listen("mobile_app_notification_action", self._on_mobile_action))
+        self._unsubs.append(self.hass.bus.async_listen("telegram_callback", self._on_telegram_callback))
 
     async def async_stop(self) -> None:
         for unsub in self._unsubs:
@@ -198,6 +204,37 @@ class AlertEngine:
         if event.data.get("action") == ACK_ACTION:
             self.hass.async_create_task(self.async_acknowledge())
 
+    @callback
+    def _on_telegram_callback(self, event: Event) -> None:
+        """Butonul "Am vazut" din mesajul Telegram."""
+        if event.data.get("data") != ACK_TELEGRAM:
+            return
+        self.hass.async_create_task(self._telegram_ack(event.data))
+
+    async def _telegram_ack(self, data: Mapping[str, Any]) -> None:
+        await self.async_acknowledge()
+        entry_id = self._telegram_entry_id
+        if not entry_id:
+            return
+        # Confirm apasarea si scot butonul din mesaj (daca esueaza, nu conteaza)
+        await self._call(
+            "telegram_bot",
+            "answer_callback_query",
+            {"config_entry_id": entry_id, "callback_query_id": data.get("id"), "message": self._t["ack_done"]},
+        )
+        message = data.get("message") or {}
+        if message.get("message_id") and data.get("chat_id"):
+            await self._call(
+                "telegram_bot",
+                "edit_replymarkup",
+                {
+                    "config_entry_id": entry_id,
+                    "message_id": message["message_id"],
+                    "chat_id": data["chat_id"],
+                    "inline_keyboard": [],
+                },
+            )
+
     # ---- executie -----------------------------------------------------------
     @callback
     def start(self, tier: int, info: dict[str, str], drill: bool) -> None:
@@ -226,10 +263,13 @@ class AlertEngine:
             body += t["drill_body"]
         return title, body
 
-    async def _call(self, domain: str, service: str, data: dict[str, Any]) -> None:
-        """Apel de serviciu care nu opreste alerta daca un dispozitiv lipseste sau da eroare."""
+    async def _call(self, domain: str, service: str, data: dict[str, Any], *, blocking: bool = False) -> None:
+        """Apel de serviciu care nu opreste alerta daca un dispozitiv lipseste sau da eroare.
+
+        Implicit NEBLOCANT: o singura lumina sau un singur telefon lent nu trebuie sa intarzie sirena si vocea.
+        """
         try:
-            await self.hass.services.async_call(domain, service, data, blocking=True)
+            await self.hass.services.async_call(domain, service, data, blocking=blocking)
         except (HomeAssistantError, ValueError) as err:
             _LOGGER.warning("Alerta: %s.%s a esuat: %s", domain, service, err)
 
@@ -239,14 +279,15 @@ class AlertEngine:
             if (cfg.lights or cfg.all_lights or cfg.speakers) and not self._snapshot_taken:
                 await self._snapshot(cfg)
             self._stop_entities = (list(cfg.sirens), list(cfg.speakers))
-            await self._notify(cfg, info, drill)
-            if cfg.lights or cfg.all_lights:
-                await self._lights_on(cfg)
             cycles = const.MAX_CYCLES if (cfg.repeat and tier >= 3) else 1
             for i in range(cycles):
                 if self._ack.is_set():
                     break
-                await asyncio.gather(self._speak(cfg, info, drill), self._sirens(cfg))
+                actions = [self._speak(cfg, info, drill), self._sirens(cfg)]
+                if i == 0:
+                    # Prima data si notificarile si luminile, TOATE in paralel cu sirena si vocea
+                    actions += [self._notify(cfg, info, drill), self._lights_on(cfg)]
+                await asyncio.gather(*actions)
                 if i < cycles - 1:
                     await self._wait_ack(const.CYCLE_PAUSE)
             # Dupa ultimul ciclu: astept confirmarea; fara ea, readuc casa cum era dupa 30 de minute.
@@ -286,18 +327,38 @@ class AlertEngine:
             "actions": [{"action": ACK_ACTION, "title": self._t["ack"]}],
         }
         calls = [self._call("notify", name, {"title": title, "message": body, "data": data}) for name in cfg.notify]
-        # Entitati de notificare (de exemplu botul Telegram): mesaj simplu, fara optiunile specifice telefoanelor
-        if cfg.notify_entities:
-            calls.append(
-                self._call("notify", "send_message", {"entity_id": cfg.notify_entities, "title": title, "message": body})
-            )
+        others: list[str] = []
+        registry = er.async_get(self.hass)
+        for entity in cfg.notify_entities:
+            reg = registry.async_get(entity)
+            if reg is not None and reg.platform == "telegram_bot" and reg.config_entry_id and reg.unique_id:
+                # Botul Telegram: mesaj cu buton "Am vazut" (unique_id = "<bot>_<chat>")
+                chat = reg.unique_id.rsplit("_", 1)[-1]
+                self._telegram_entry_id = reg.config_entry_id
+                calls.append(
+                    self._call(
+                        "telegram_bot",
+                        "send_message",
+                        {
+                            "config_entry_id": reg.config_entry_id,
+                            "chat_id": int(chat) if chat.lstrip("-").isdigit() else chat,
+                            "title": title,
+                            "message": body,
+                            "inline_keyboard": [f"{self._t['ack']}:{ACK_TELEGRAM}"],
+                        },
+                    )
+                )
+            else:
+                others.append(entity)
+        if others:
+            calls.append(self._call("notify", "send_message", {"entity_id": others, "title": title, "message": body}))
         await asyncio.gather(*calls)
 
     async def _snapshot(self, cfg: TierConfig) -> None:
         """Salveaza luminile (instantaneu) si volumele boxelor, ca sa le poata readuce."""
         lights = self._light_targets(cfg)
         if lights:
-            await self._call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": lights})
+            await self._call("scene", "create", {"scene_id": SCENE_ID, "snapshot_entities": lights}, blocking=True)
         self._saved_volumes = {}
         for entity in cfg.speakers:
             state = self.hass.states.get(entity)
@@ -316,6 +377,8 @@ class AlertEngine:
         return list(cfg.lights)
 
     async def _lights_on(self, cfg: TierConfig) -> None:
+        if not (cfg.lights or cfg.all_lights):
+            return
         targets = self._light_targets(cfg)
         if targets:
             await self._call("light", "turn_on", {"entity_id": targets, "brightness_pct": cfg.brightness})

@@ -62,6 +62,7 @@ DEFAULT_BRIGHTNESS = 100
 DEFAULT_SPEAKER_VOLUME = 0.8
 
 ACK_ACTION = "INFP_ALERTE_OK"  # actiunea butonului "Am vazut" din notificare
+ACK_TELEGRAM = "/infp_alerte_ack"  # comanda butonului "Am vazut" din Telegram
 SCENE_ID = "infp_alerte_before"  # instantaneul luminilor dinaintea alertei
 CYCLE_PAUSE = 20  # secunde intre repetari (treapta 3)
 MAX_CYCLES = 5

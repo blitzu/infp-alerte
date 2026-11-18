@@ -197,3 +197,61 @@ async def test_treapta_doar_cu_notificari_se_incheie_imediat(hass: HomeAssistant
     await hub.async_handle_quake(_q(4.3))
     await asyncio.wait_for(hass.async_block_till_done(), 2)
     assert len(c["notify.mobile_app_telefon_a"]) == 1 and not hub.engine.active
+
+
+async def test_o_lumina_lenta_nu_intarzie_sirena_si_vocea(hass: HomeAssistant, hass_storage, monkeypatch):
+    """Regresie reala (18 nov. 2026): light.turn_on blocant la ~30 de lumini a tinut sirena si vocea >40 s."""
+    monkeypatch.setattr(const, "RESTORE_TIMEOUT", 30)
+    entry, hub, c = await _setup(hass, {"2": tier2_options()})
+
+    async def slow_light(call):
+        await asyncio.sleep(10)  # o lumina care nu raspunde
+
+    hass.services.async_register("light", "turn_on", slow_light)
+    await hub.async_handle_quake(_q(5.3))
+    await asyncio.sleep(0.3)
+    assert c["siren.turn_on"], "sirena nu trebuie sa astepte luminile"
+    assert c["tts.speak"], "vocea nu trebuie sa astepte luminile"
+    assert c["notify.mobile_app_telefon_a"], "nici notificarile"
+    await hub.engine.async_acknowledge()
+    await hass.async_block_till_done()
+
+
+async def test_telegram_primeste_mesaj_cu_buton_si_butonul_opreste_alerta(hass: HomeAssistant, hass_storage, monkeypatch):
+    from homeassistant.helpers import entity_registry as er
+
+    from custom_components.infp_alerte.const import ACK_TELEGRAM
+
+    monkeypatch.setattr(const, "RESTORE_TIMEOUT", 30)
+    bot = MockConfigEntry(domain="telegram_bot")
+    bot.add_to_hass(hass)
+    er.async_get(hass).async_get_or_create(
+        "notify", "telegram_bot", "111_222", config_entry=bot, suggested_object_id="telegram_bot_111_222"
+    )
+    opts = {**tier2_options(), "notify": {"entities": ["notify.telegram_bot_111_222"]}}
+    entry, hub, c = await _setup(hass, {"2": opts})
+    send = async_mock_service(hass, "telegram_bot", "send_message")
+    answer = async_mock_service(hass, "telegram_bot", "answer_callback_query")
+    edit = async_mock_service(hass, "telegram_bot", "edit_replymarkup")
+    await hub.async_handle_quake(_q(5.3))
+    await asyncio.sleep(0.1)
+    assert len(send) == 1
+    d = send[0].data
+    assert d["config_entry_id"] == bot.entry_id and d["chat_id"] == 222
+    assert d["inline_keyboard"] == [f"Am văzut:{ACK_TELEGRAM}"]
+    hass.bus.async_fire("telegram_callback", {"data": ACK_TELEGRAM, "id": "cb1", "chat_id": 222, "message": {"message_id": 9}})
+    await hass.async_block_till_done()
+    assert c["siren.turn_off"] and not hub.engine.active
+    assert answer[0].data["callback_query_id"] == "cb1" and edit[0].data["message_id"] == 9 and edit[0].data["inline_keyboard"] == []
+
+
+async def test_alte_callback_uri_telegram_sunt_ignorate(hass: HomeAssistant, hass_storage, monkeypatch):
+    monkeypatch.setattr(const, "RESTORE_TIMEOUT", 30)
+    entry, hub, c = await _setup(hass, {"2": tier2_options()})
+    await hub.async_handle_quake(_q(5.3))
+    await asyncio.sleep(0.1)
+    hass.bus.async_fire("telegram_callback", {"data": "/dezarmeaza_alarmo", "id": "x", "chat_id": 1})
+    await asyncio.sleep(0.1)
+    assert hub.engine.active and not c["siren.turn_off"]
+    await hub.engine.async_acknowledge()
+    await hass.async_block_till_done()
