@@ -189,3 +189,11 @@ async def test_notificare_catre_entitati_notify_ex_telegram(hass: HomeAssistant,
     await hass.async_block_till_done()
     assert len(send) == 1 and send[0].data["entity_id"] == ["notify.bot_telegram"]
     assert send[0].data["title"].startswith("Cutremur M5.0")
+
+
+async def test_treapta_doar_cu_notificari_se_incheie_imediat(hass: HomeAssistant, hass_storage, monkeypatch):
+    monkeypatch.setattr(const, "RESTORE_TIMEOUT", 30)  # daca ar astepta confirmare, testul ar atarna 30 s
+    entry, hub, c = await _setup(hass, {"1": tier1_options()})
+    await hub.async_handle_quake(_q(4.3))
+    await asyncio.wait_for(hass.async_block_till_done(), 2)
+    assert len(c["notify.mobile_app_telefon_a"]) == 1 and not hub.engine.active

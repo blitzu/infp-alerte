@@ -249,9 +249,11 @@ class AlertEngine:
                 await asyncio.gather(self._speak(cfg, info, drill), self._sirens(cfg))
                 if i < cycles - 1:
                     await self._wait_ack(const.CYCLE_PAUSE)
-            # Dupa ultimul ciclu: astept confirmarea; fara ea, readuc casa cum era dupa 30 de minute
-            await self._wait_ack(const.RESTORE_TIMEOUT)
-            await self._restore()
+            # Dupa ultimul ciclu: astept confirmarea; fara ea, readuc casa cum era dupa 30 de minute.
+            # O treapta doar cu notificari nu are ce sa readuca, deci se incheie imediat.
+            if cfg.sirens or cfg.lights or cfg.all_lights or cfg.speakers:
+                await self._wait_ack(const.RESTORE_TIMEOUT)
+                await self._restore()
         except asyncio.CancelledError:
             raise
         finally:
