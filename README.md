@@ -51,7 +51,11 @@ Cu contul conectat în integrare, în aplicația Telegram trebuie să vezi canal
 
 ## Alerte pe trepte (blueprint)
 
-Importă blueprint-ul `blueprints/automation/infp_alerte/alerta_pe_trepte.yaml`, apoi creează o automatizare din el. Pentru fiecare treaptă alegi magnitudinea minimă, distanța maximă și acțiunile. Implicit: treapta 1 de la M4,0 sub 350 km, treapta 2 de la M4,5 sub 350 km, treapta 3 de la M5,5 sub 450 km. Se execută doar treapta cea mai înaltă potrivită.
+Importă blueprint-ul cu un clic, apoi creează o automatizare din el (*Setări → Automatizări → Creează automatizare → Folosește un blueprint*):
+
+[![Deschide instanța mea Home Assistant și importă blueprint-ul.](https://my.home-assistant.io/badges/blueprint_import.svg)](https://my.home-assistant.io/redirect/blueprint_import/?blueprint_url=https%3A%2F%2Fgithub.com%2Fblitzu%2Finfp-alerte%2Fblob%2Fmain%2Fblueprints%2Fautomation%2Finfp_alerte%2Falerta_pe_trepte.yaml)
+
+(Fișierul e `blueprints/automation/infp_alerte/alerta_pe_trepte.yaml`; HACS instalează doar integrarea, nu și blueprint-urile.) Pentru fiecare treaptă alegi magnitudinea minimă, distanța maximă și acțiunile. Implicit: treapta 1 de la M4,0 sub 350 km, treapta 2 de la M4,5 sub 350 km, treapta 3 de la M5,5 sub 450 km. Se execută doar treapta cea mai înaltă potrivită.
 
 În acțiuni sunt disponibile variabilele `tier`, `magnitude`, `distance_km`, `depth_km`, `region`, `quake_time`, `source`, `revised`.
 
