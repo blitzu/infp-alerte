@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.session
+*.env
+custom_components/infp_alerte/default_api.json

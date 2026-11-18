@@ -1,0 +1,152 @@
+blueprint:
+  name: Alertă cutremur pe trepte (INFP + EMSC)
+  description: >
+    Transformă evenimentul „Cutremur” al integrării **Alerte seismice INFP + EMSC** în alerte pe trepte. Alegi tu,
+    pentru fiecare treaptă, de la ce magnitudine și până la ce distanță se declanșează și ce se întâmplă
+    (notificări, sirenă, lumini, vocea pe boxe etc.).
+
+    Se execută doar acțiunile **celei mai înalte trepte** potrivite cutremurului. În acțiuni poți folosi variabilele:
+    `tier` (1–3), `magnitude`, `distance_km`, `depth_km`, `region`, `quake_time` (ora locală, HH:MM:SS), `source`
+    (infp / emsc) și `revised` (true dacă e o revizuire în sus a magnitudinii unui cutremur deja anunțat) și `previous_magnitude`.
+
+    O revizuire a magnitudinii unui cutremur deja anunțat rulează acțiunile doar dacă **treapta crește** (de exemplu de la 2 la 3), nu la fiecare corectare în aceeași treaptă.
+
+    Cutremurele mai vechi de 30 de minute și evenimentele de după repornirea Home Assistant sunt ignorate.
+  domain: automation
+  author: infp-alerte
+  source_url: https://github.com/blitzu/infp-alerte/blob/main/blueprints/automation/infp_alerte/alerta_pe_trepte.yaml
+  input:
+    quake_event:
+      name: Entitatea „Cutremur”
+      description: Entitatea de tip eveniment creată de integrare.
+      selector:
+        entity:
+          filter:
+            - integration: infp_alerte
+              domain: event
+    tier1:
+      name: Treapta 1 – informare
+      icon: mdi:bell-outline
+      collapsed: false
+      input:
+        tier1_min_magnitude:
+          name: Magnitudine minimă
+          default: 4.0
+          selector:
+            number: {min: 1, max: 8, step: 0.1, mode: box}
+        tier1_max_distance:
+          name: Distanță maximă (km)
+          default: 350
+          selector:
+            number: {min: 10, max: 3000, step: 10, unit_of_measurement: km, mode: box}
+        tier1_actions:
+          name: Acțiuni
+          description: De exemplu o notificare obișnuită pe telefon.
+          default: []
+          selector:
+            action: {}
+    tier2:
+      name: Treapta 2 – alarmă
+      icon: mdi:alarm-light-outline
+      collapsed: false
+      input:
+        tier2_min_magnitude:
+          name: Magnitudine minimă
+          default: 4.5
+          selector:
+            number: {min: 1, max: 8, step: 0.1, mode: box}
+        tier2_max_distance:
+          name: Distanță maximă (km)
+          default: 350
+          selector:
+            number: {min: 10, max: 3000, step: 10, unit_of_measurement: km, mode: box}
+        tier2_actions:
+          name: Acțiuni
+          description: De exemplu notificare critică, sirenă, lumini la 100%, mesaj vocal pe boxe.
+          default: []
+          selector:
+            action: {}
+    tier3:
+      name: Treapta 3 – critic
+      icon: mdi:alert-octagon-outline
+      collapsed: false
+      input:
+        tier3_min_magnitude:
+          name: Magnitudine minimă
+          default: 5.5
+          selector:
+            number: {min: 1, max: 8, step: 0.1, mode: box}
+        tier3_max_distance:
+          name: Distanță maximă (km)
+          default: 450
+          selector:
+            number: {min: 10, max: 3000, step: 10, unit_of_measurement: km, mode: box}
+        tier3_actions:
+          name: Acțiuni
+          description: Ca la treapta 2, eventual repetate până confirmi.
+          default: []
+          selector:
+            action: {}
+
+mode: queued
+max: 5
+
+variables:
+  magnitude: "{{ trigger.to_state.attributes.get('magnitude', 0) | float(0) }}"
+  distance_km: "{{ trigger.to_state.attributes.get('distance_km', 99999) | float(99999) }}"
+  depth_km: "{{ trigger.to_state.attributes.get('depth_km', 0) | float(0) }}"
+  region: "{{ trigger.to_state.attributes.get('region') or 'zona României' }}"
+  source: "{{ trigger.to_state.attributes.get('source', '') }}"
+  revised: "{{ trigger.to_state.attributes.get('revised', false) }}"
+  previous_magnitude: "{{ trigger.to_state.attributes.get('previous_magnitude') }}"
+  quake_time: "{{ as_local(as_datetime(trigger.to_state.attributes.get('quake_time'))).strftime('%H:%M:%S') if trigger.to_state.attributes.get('quake_time') else '' }}"
+  t1_mag: !input tier1_min_magnitude
+  t1_dist: !input tier1_max_distance
+  t2_mag: !input tier2_min_magnitude
+  t2_dist: !input tier2_max_distance
+  t3_mag: !input tier3_min_magnitude
+  t3_dist: !input tier3_max_distance
+  tier: >-
+    {% if magnitude >= t3_mag | float and distance_km <= t3_dist | float %}3
+    {%- elif magnitude >= t2_mag | float and distance_km <= t2_dist | float %}2
+    {%- elif magnitude >= t1_mag | float and distance_km <= t1_dist | float %}1
+    {%- else %}0{% endif %}
+  prev_tier: >-
+    {% set pm = previous_magnitude | float(0) %}
+    {%- if previous_magnitude is none or not revised %}0
+    {%- elif pm >= t3_mag | float and distance_km <= t3_dist | float %}3
+    {%- elif pm >= t2_mag | float and distance_km <= t2_dist | float %}2
+    {%- elif pm >= t1_mag | float and distance_km <= t1_dist | float %}1
+    {%- else %}0{% endif %}
+
+triggers:
+  - trigger: state
+    entity_id: !input quake_event
+
+conditions:
+  # Ignora trecerile din "unavailable" (repornire/reincarcare, cand entitatea isi restaureaza ultimul eveniment)
+  - condition: template
+    value_template: >-
+      {{ trigger.from_state is not none
+         and trigger.from_state.state != 'unavailable'
+         and trigger.to_state.state not in ['unavailable', 'unknown']
+         and trigger.to_state.attributes.get('event_type') == 'cutremur'
+         and trigger.to_state.attributes.get('quake_time')
+         and (now() - as_datetime(trigger.to_state.attributes.get('quake_time'))).total_seconds() < 1800
+         and tier | int > 0
+         and (not revised or tier | int > prev_tier | int) }}
+
+actions:
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ tier | int == 3 }}"
+        sequence: !input tier3_actions
+      - conditions:
+          - condition: template
+            value_template: "{{ tier | int == 2 }}"
+        sequence: !input tier2_actions
+      - conditions:
+          - condition: template
+            value_template: "{{ tier | int == 1 }}"
+        sequence: !input tier1_actions

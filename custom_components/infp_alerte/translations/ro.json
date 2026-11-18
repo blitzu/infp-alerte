@@ -1,0 +1,131 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Alerte seismice INFP + EMSC",
+        "description": "Alertele INFP provin de la INCDFP (Institutul Național de Cercetare-Dezvoltare pentru Fizica Pământului) prin canalul de Telegram „Alertă Cutremur”. Alege sursa. **Telegram (INFP)** e cea rapidă: botul INFP anunță cutremurele mari după ~30 de secunde și are nevoie de contul tău Telegram. **Doar EMSC** nu cere cont, dar e mai lent (1–5 minute).",
+        "menu_options": {
+          "telegram": "Telegram (INFP) + EMSC – rapid, cere cont Telegram",
+          "emsc_only": "Doar EMSC – fără cont, mai lent"
+        }
+      },
+      "telegram": {
+        "title": "Cont Telegram",
+        "description": "Folosește de preferat un **cont Telegram separat** (alt număr) abonat la botul @INFP_alerteCutremur_bot: sesiunea salvată în Home Assistant ar putea citi tot contul. Ia `api_id` și `api_hash` gratuit de pe https://my.telegram.org → *API development tools*. Se citesc doar mesajele care arată ca un buletin INFP.",
+        "data": {
+          "api_id": "api_id",
+          "api_hash": "api_hash",
+          "phone": "Număr de telefon (+40...)"
+        }
+      },
+      "code": {
+        "title": "Cod de verificare",
+        "description": "Telegram a trimis un cod în aplicația contului. Introdu-l aici.",
+        "data": {
+          "code": "Cod"
+        }
+      },
+      "password": {
+        "title": "Parolă în doi pași",
+        "description": "Contul are verificare în doi pași. Introdu parola.",
+        "data": {
+          "password": "Parolă"
+        }
+      },
+      "phone": {
+        "title": "Număr de telefon Telegram",
+        "description": "Introdu numărul contului Telegram (cu +40...), **abonat în prealabil, prin @INFP_alerteCutremur_bot, la canalele private de alertă INFP (după ce ai acceptat Termenii și Condițiile lor)**. Recomandat: un cont separat (alt număr), pentru că sesiunea salvată în Home Assistant ar putea citi tot contul. Primești un cod în Telegram la pasul următor. Se citesc doar mesajele care arată ca un buletin INFP.",
+        "data": {
+          "phone": "Număr de telefon (+40...)"
+        }
+      }
+    },
+    "error": {
+      "invalid_api": "api_id sau api_hash invalide.",
+      "invalid_phone": "Număr de telefon invalid sau blocat.",
+      "invalid_code": "Cod greșit.",
+      "code_expired": "Codul a expirat. Cere altul.",
+      "invalid_password": "Parolă greșită.",
+      "flood": "Prea multe încercări. Așteaptă puțin și reia.",
+      "cannot_connect": "Nu mă pot conecta la Telegram.",
+      "unknown": "Eroare neașteptată (vezi jurnalul)."
+    },
+    "abort": {
+      "single_instance_allowed": "Integrarea e deja configurată.",
+      "already_configured": "Contul e deja configurat.",
+      "wrong_account": "Ai folosit alt cont decât cel configurat.",
+      "reauth_successful": "Autentificare reușită."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Praguri",
+        "description": "Cutremurele sub magnitudinea minimă sau peste distanța maximă (față de locația casei din HA) sunt ignorate. Alertele pe trepte se configurează din blueprint.",
+        "data": {
+          "min_magnitude": "Magnitudine minimă",
+          "max_distance_km": "Distanță maximă",
+          "use_emsc": "Folosește și EMSC (rezervă)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "event": {
+      "quake": {
+        "name": "Cutremur",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "cutremur": "Cutremur"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "last_magnitude": {
+        "name": "Ultima magnitudine"
+      },
+      "last_distance": {
+        "name": "Ultima distanță"
+      },
+      "last_time": {
+        "name": "Ora ultimului cutremur"
+      }
+    },
+    "binary_sensor": {
+      "telegram_connected": {
+        "name": "Telegram conectat"
+      }
+    }
+  },
+  "services": {
+    "simulate_quake": {
+      "name": "Simulează un cutremur",
+      "description": "Declanșează un cutremur de test (ocolește pragurile și deduplicarea). Ține cont: blueprint-ul rulează acțiunile treptei corespunzătoare, deci alege o magnitudine mică (treapta 1) ca să nu pornești sirena.",
+      "fields": {
+        "magnitude": {
+          "name": "Magnitudine",
+          "description": "Magnitudine"
+        },
+        "distance_km": {
+          "name": "Distanță față de casă",
+          "description": "Distanță față de casă"
+        },
+        "depth_km": {
+          "name": "Adâncime",
+          "description": "Adâncime"
+        },
+        "region": {
+          "name": "Regiune",
+          "description": "Regiune"
+        }
+      }
+    },
+    "check_subscriptions": {
+      "name": "Verifică abonările",
+      "description": "Listează canalele de alertă seismică (după titlu) la care e abonat contul Telegram conectat. Se citesc doar titlurile canalelor de difuzare care par INFP; restul conversațiilor nu sunt citite."
+    }
+  }
+}

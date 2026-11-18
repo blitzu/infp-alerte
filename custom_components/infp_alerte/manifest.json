@@ -1,0 +1,13 @@
+{
+  "domain": "infp_alerte",
+  "name": "Alerte seismice INFP + EMSC",
+  "codeowners": [],
+  "config_flow": true,
+  "documentation": "https://github.com/blitzu/infp-alerte",
+  "integration_type": "service",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/blitzu/infp-alerte/issues",
+  "requirements": ["telethon>=1.36.0"],
+  "single_config_entry": true,
+  "version": "0.1.0"
+}

@@ -1,0 +1,131 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "INFP + EMSC earthquake alerts",
+        "description": "INFP alerts come from INCDFP (the Romanian National Institute for Earth Physics) through the Telegram channel “Alertă Cutremur”. Choose a source. **Telegram (INFP)** is the fast one: the INFP bot announces strong earthquakes after ~30 seconds and needs your Telegram account. **EMSC only** needs no account but is slower (1–5 minutes).",
+        "menu_options": {
+          "telegram": "Telegram (INFP) + EMSC – fast, needs a Telegram account",
+          "emsc_only": "EMSC only – no account, slower"
+        }
+      },
+      "telegram": {
+        "title": "Telegram account",
+        "description": "Prefer a **separate Telegram account** (another number) subscribed to @INFP_alerteCutremur_bot: the session stored in Home Assistant could read the whole account. Get `api_id` and `api_hash` for free at https://my.telegram.org → *API development tools*. Only messages that look like an INFP bulletin are read.",
+        "data": {
+          "api_id": "api_id",
+          "api_hash": "api_hash",
+          "phone": "Phone number (+40...)"
+        }
+      },
+      "code": {
+        "title": "Verification code",
+        "description": "Telegram sent a code to the account's app. Enter it here.",
+        "data": {
+          "code": "Code"
+        }
+      },
+      "password": {
+        "title": "Two-step password",
+        "description": "The account has two-step verification. Enter the password.",
+        "data": {
+          "password": "Password"
+        }
+      },
+      "phone": {
+        "title": "Telegram phone number",
+        "description": "Enter the Telegram account's phone number (with country code), **already subscribed, via @INFP_alerteCutremur_bot, to INFP's private alert channels (after accepting their Terms and Conditions)**. Recommended: a separate account (another number), because the session stored in Home Assistant could read the whole account. You will receive a code in Telegram on the next step. Only messages that look like an INFP bulletin are read.",
+        "data": {
+          "phone": "Phone number (+40...)"
+        }
+      }
+    },
+    "error": {
+      "invalid_api": "Invalid api_id or api_hash.",
+      "invalid_phone": "Invalid or banned phone number.",
+      "invalid_code": "Wrong code.",
+      "code_expired": "The code expired. Request a new one.",
+      "invalid_password": "Wrong password.",
+      "flood": "Too many attempts. Wait a bit and retry.",
+      "cannot_connect": "Cannot connect to Telegram.",
+      "unknown": "Unexpected error (see the log)."
+    },
+    "abort": {
+      "single_instance_allowed": "The integration is already configured.",
+      "already_configured": "This account is already configured.",
+      "wrong_account": "You signed in with a different account than the configured one.",
+      "reauth_successful": "Re-authentication successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Thresholds",
+        "description": "Earthquakes below the minimum magnitude or beyond the maximum distance (from the Home Assistant home location) are ignored. Tiered alerts are configured in the blueprint.",
+        "data": {
+          "min_magnitude": "Minimum magnitude",
+          "max_distance_km": "Maximum distance",
+          "use_emsc": "Also use EMSC (backup)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "event": {
+      "quake": {
+        "name": "Earthquake",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "cutremur": "Earthquake"
+            }
+          }
+        }
+      }
+    },
+    "sensor": {
+      "last_magnitude": {
+        "name": "Last magnitude"
+      },
+      "last_distance": {
+        "name": "Last distance"
+      },
+      "last_time": {
+        "name": "Last earthquake time"
+      }
+    },
+    "binary_sensor": {
+      "telegram_connected": {
+        "name": "Telegram connected"
+      }
+    }
+  },
+  "services": {
+    "simulate_quake": {
+      "name": "Simulate an earthquake",
+      "description": "Fires a test earthquake (bypasses thresholds and deduplication). Note: the blueprint runs the matching tier's actions, so pick a small magnitude (tier 1) to avoid triggering sirens.",
+      "fields": {
+        "magnitude": {
+          "name": "Magnitude",
+          "description": "Magnitude"
+        },
+        "distance_km": {
+          "name": "Distance from home",
+          "description": "Distance from home"
+        },
+        "depth_km": {
+          "name": "Depth",
+          "description": "Depth"
+        },
+        "region": {
+          "name": "Region",
+          "description": "Region"
+        }
+      }
+    },
+    "check_subscriptions": {
+      "name": "Check subscriptions",
+      "description": "Lists the earthquake-alert broadcast channels (by title) the connected Telegram account is subscribed to. Only titles of broadcast channels that look like INFP are read; other chats are not touched."
+    }
+  }
+}
